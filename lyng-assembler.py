@@ -37,42 +37,42 @@ opcodeRef = {
     "JAL" : 0b10101,
     "MOVSP" : 0b10110,
     "RET" : 0b10111,
-    "STC" : 0b10111,
+    "STC" : 0b11000,
     "NOP" : 0b11001,
 }
 
 # instruction format referefrence
 # key: opcode letter code
-# value: instruction fomat string ($ = register param, # = immedaete param)
+# value: instruction fomat string (R = register, U = unsigned immedaete, S = singed immedaete)
 instrFormatRef = {
-    "ADD" : "$$$",
-    "ADC" : "$$$",
-    "SUB" : "$$$",
-    "SBB" : "$$$",
-    "AND" : "$$$",
-    "OR" : "$$$",
-    "XOR" : "$$$",
-    "NOT" : "$$",
-    "SHFL" : "$$#",
-    "SHFA" : "$$#",
-    "ADDI" : "$$#",
-    "SUBI" : "$$#",
-    "MVIH" : "$#",
-    "MVIL" : "$#",
-    "LDIDR" : "$$#",
-    "STIDR" : "$$#",
-    "LDIDX" : "$$$",
-    "STIDX" : "$$$",
-    "JMP" : "#",
-    "JMPI" : "$",
-    "JGEO" : "$$#",
-    "JLEO" : "$$#",
-    "JCO" : "#",
-    "JEO" : "$$#",
-    "PUSH" : "$",
-    "POP" : "$",
-    "CALL" : "$",
-    "JAL" : "#",
+    "ADD" : "RRR",
+    "ADC" : "RRR",
+    "SUB" : "RRR",
+    "SBB" : "RRR",
+    "AND" : "RRR",
+    "OR" : "RRR",
+    "XOR" : "RRR",
+    "NOT" : "RR",
+    "SHFL" : "RRS",
+    "SHFA" : "RRS",
+    "ADDI" : "RRU",
+    "SUBI" : "RRU",
+    "MVIH" : "RU",
+    "MVIL" : "RU",
+    "LDIDR" : "RRS",
+    "STIDR" : "RRS",
+    "LDIDX" : "RRR",
+    "STIDX" : "RRR",
+    "JMP" : "R",
+    "JMPI" : "S",
+    "JGEO" : "RRS",
+    "JLEO" : "RRS",
+    "JCO" : "S",
+    "JEO" : "RRS",
+    "PUSH" : "R",
+    "POP" : "R",
+    "CALL" : "R",
+    "JAL" : "S",
     "MOVSP" : "",
     "RET" : "",
     "STC" : "",
@@ -93,105 +93,152 @@ funcRef = {
     "NOT" : 0b11,
 }
 
+# global error list and error flag
 errorList = []
 compilationError = False
 
 def getOpcode(code):
-    """Returns instruction opcode number based on the letter opcode."""
+    """Return opcode based on letter code of the instruction"""
     try:
         return opcodeRef[code.upper()]
     except:
         return None
 
 def getInstrFomat(code):
-    """Returns instruction fomat as string based on the letter opcode."""
+    """Return instruction fomat string (R = register, U = unsigned immedaete, S = singed immedaete) based on the letter code"""
     try:
         return instrFormatRef[code.upper()]
     except:
         return None
 
 def getFunc(code):
-    """Returns instruction func (bits [0:2]) based on the letter opcode or 0 if code is not in referefrence."""
+    """Return instruction func (bits [0:2]) based on the letter opcode or 0 if code is not in referefrence"""
     try:
         return funcRef[code]
     except:
         return 0
 
 def addError(text, lineNum):
+    """Add error to error list and makrk compilation as failed"""
     errorList.append((text, lineNum))
     global compilationError
     compilationError = True
 
 def printErrors():
+    """Print out error list"""
     for err in errorList:
         print("[error] line {}: {}".format(err[1], err[0]))
 
+def decStrToBin(numStr, bits):
+    """Convert sring into int of n-bits (negative numbers as 2's complement)"""
+    return int(int(numStr) & 2**bits-1)
+
+def isInBitRange(num, bits, signed):
+    """
+    Check if number is encodable in n-bits
+    num     - number to check
+    bits    - max number of bits
+    signed  - 'S' = signed, 'U' = unsigned
+    return: True if is in range
+    """
+    if signed == "S":
+        return (2**(bits-1) > int(num) and -(2**(bits-1)) <= int(num))
+    elif signed == "U":
+        return 2**bits > int(num)
+    else:
+        raise ValueError("invalid signedness mark")
+
 def verifyInstrFomat(expresions, fomatStr, lineNum):
     """
-    Verifies if instruction has a correct format
+    Verify if instruction has a correct format and add errors to error list if not
+    expresions - array of srings as parts of instruction (letter code followed by parametrs)
+    fomatStr   - format string of the instruction
+    lineNum    - source file line number
+    return: none
     """
     # check number of parametrs
     if len(expresions) != len(fomatStr) + 1:
         addError("invalid number of instruction parametrs, given: {}, expected: {}".fomat(len(expresions)-1, len(fomatStr)), lineNum)
     # check parametr fomats
     for i,ch in enumerate(fomatStr):
-        if ch == "$":
-            if re.match(r"[$][0-8]",expresions[i+1]):
+        if ch == "R":
+            if re.match(r"[$][0-7]",expresions[i+1]):
                 continue
-        elif ch == "#":
-            if re.match(r"[0-9]*",expresions[i+1]):
+        elif ch == "U":
+            if re.match(r"^[0-9]*$",expresions[i+1]):
+                continue
+        elif ch == "S":
+            if re.match(r"^-?[0-9]*$",expresions[i+1]):
                 continue
         addError("invalid parametr number {}".format(i+1), lineNum)
 
 def extractInstrValues(expresions, fomatStr):
     """
     Extracts values of register addresses and immedaete
-    RETURN: reg - array of register addr in oreder Rd, Rs1, Rs2
+    expresions - array of srings as parts of instruction (letter code followed by parametrs)
+    fomatStr   - format string of the instruction
+    return: reg - array of register addr in oreder Rd, Rs1, Rs2
             imm - value of immedaete
     """
     reg = []
     imm = None
     for i,ch in enumerate(fomatStr):
-        if ch == "$":
+        if ch == "R":
             reg.append(int(expresions[i+1][1:]))
-        elif ch == "#":
-            imm = int(expresions[i+1])
+        elif ch == "U" or ch == "S":
+            imm = expresions[i+1]
     return reg, imm
 
 def instrToBinary(expresions, fomatStr, lineNum):
+    """
+    Convert instruction from expresions (string parts) to binary
+    expresions - array of srings as parts of instruction (letter code followed by parametrs)
+    fomatStr   - format string of the instruction
+    lineNum    - source file line number
+    return: instruction as binary int
+    """
     # extract values of parametrs
     reg, imm = extractInstrValues(expresions, fomatStr)
     # convert to binary
     binaryLine = getOpcode(expresions[0]) << 11 # opcode from lookup dict
     binaryLine += getFunc(expresions[0]) # func from lookup dict
-    if fomatStr.count("$") == 3: # Rd,Rs1,Rs2
+    if fomatStr.count("R") == 3: # Rd,Rs1,Rs2
         binaryLine += reg[0] << 5
         binaryLine += reg[1] << 8
         binaryLine += reg[2] << 2
-    elif fomatStr.count("$") == 2: # Rd, Rs1
+    elif fomatStr.count("R") == 2: # Rd, Rs1
         binaryLine += reg[0] << 5
         binaryLine += reg[1] << 8
-        if fomatStr[-1] == "#": # Rd,Rs1,#5bit
-            if imm < 2**5: # check if imm fits in 5 bits
+        if fomatStr[-1] == "U" or fomatStr[-1] == "S": # Rd,Rs1,#5bit
+            if isInBitRange(imm, 5, fomatStr[-1]): # check if imm fits in 5 bits
+                imm = decStrToBin(imm, 5)
                 binaryLine += imm
             else:
                 addError("immedaete bigger than 5 bits", lineNum)
-    elif fomatStr.count("$") == 1: # Rd
+    elif fomatStr.count("R") == 1: # Rd
         binaryLine += reg[0] << 5
-        if fomatStr[-1] == "#": # Rd,#8bit
-            if imm < 2**8: # check if imm fits in 8 bits
+        if fomatStr[-1] == "U" or fomatStr[-1] == "S": # Rd,#8bit
+            if isInBitRange(imm, 8, fomatStr[-1]): # check if imm fits in 8 bits
+                imm = decStrToBin(imm, 8)
                 binaryLine += imm & 0b11111
                 binaryLine += ((imm >> 5) & 0b111) << 8
             else:
                 addError("immedaete bigger than 8 bits", lineNum)
-    elif fomatStr == "#": # #11bit
-        if imm < 2**11: # check if imm fits in 11 bits
+    elif fomatStr == "U" or fomatStr == "S": # #11bit
+        if isInBitRange(imm, 11, fomatStr[-1]): # check if imm fits in 11 bits
+            imm = decStrToBin(imm, 11)
             binaryLine += imm
         else:
             addError("immedaete bigger than 11 bits", lineNum)
     return binaryLine
 
 def lineToBinary(line, lineNum):
+    """
+    Verify line fomat and convert it to binary instruction
+    line       - line as string
+    lineNum    - source file line number
+    return: instruction as binary int
+    """
     # preprocessing
     line = line.split("#")[0] # trim comments
     line = line.rstrip() # trim spaces at the end
@@ -213,11 +260,20 @@ def main():
     source = sys.argv[1]
     dest = sys.argv[2]
 
-    #open files
-    sourceFile = open(source, "r") # assembly file
-    destFile = open(dest, "wb") # bytecode file
+    print("Lyng Assembler v0.1")
 
-    print("Lyng Assembler v1.0")
+    #open files
+    try:
+        sourceFile = open(source, "r") # assembly file
+    except:
+        print("Opening {} failed".format(source))
+        return
+    try:
+        destFile = open(dest, "wb") # bytecode file
+    except:
+        print("Opening {} failed".format(dest))
+        return
+
     print("Compiling {}...".format(source))
 
     # convert instructions to binary line by line

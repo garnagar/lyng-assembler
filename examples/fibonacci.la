@@ -1,0 +1,6 @@
+MVIL $0,0 # load 0 to reg r0
+MVIH $0,0
+MVIL $1,1 # load 1 to reg r1
+MVIH $1,0
+ADD $0,$1,$0 # add last two number in the sequence
+JMPI -1 # loop
