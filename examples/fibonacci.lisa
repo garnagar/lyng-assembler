@@ -1,6 +1,14 @@
-MVIL $0,0 # load 0 to reg r0
-MVIH $0,0
-MVIL $1,1 # load 1 to reg r1
-MVIH $1,0
-ADD $0,$1,$0 # add last two number in the sequence
-JMPI -1 # loop
+MVIH $1,0 # load 0 and 1 as start of sequence
+MVIL $1,0
+MVIH $2,0
+MVIL $2,1
+MVIH $5,0 # set start location in memory
+MVIL $5,0
+MVIH $6,0 # set iterator index to 0
+MVIL $6,0
+MVIH $7,0 # set number of iterations to 100
+MVIL $7,100
+ADD $1,$1,$2 # add last two number in the sequence
+STIDX $1,$5,$6 # output number to memory
+ADDI $6,$6,1 # increment index
+JLEO $6,$7,-3 # loop
