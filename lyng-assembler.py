@@ -7,38 +7,38 @@ import enum
 # key: opcode letter code
 # value: 5bit opcode
 opcodeRef = {
-    "ADD" : 0b00000,
-    "ADC" : 0b00000,
-    "SUB" : 0b00000,
-    "SBB" : 0b00000,
-    "AND" : 0b00001,
-    "OR" : 0b00001,
-    "XOR" : 0b00001,
-    "NOT" : 0b00001,
-    "SHFL" : 0b00010,
-    "SHFA" : 0b00011,
-    "ADDI" : 0b00100,
-    "SUBI" : 0b00101,
-    "MVIH" : 0b00110,
-    "MVIL" : 0b00111,
-    "LDIDR" : 0b01000,
-    "STIDR" : 0b01001,
-    "LDIDX" : 0b01010,
-    "STIDX" : 0b01011,
-    "JMP" : 0b01100,
-    "JMPI" : 0b01101,
-    "JGEO" : 0b01110,
-    "JLEO" : 0b01111,
-    "JCO" : 0b10000,
-    "JEO" : 0b10001,
-    "PUSH" : 0b10010,
-    "POP" : 0b10011,
-    "CALL" : 0b10100,
-    "JAL" : 0b10101,
-    "MOVSP" : 0b10110,
-    "RET" : 0b10111,
-    "STC" : 0b11000,
-    "NOP" : 0b11001,
+    "ADD" : 0b00001,
+    "ADC" : 0b00001,
+    "SUB" : 0b00001,
+    "SBB" : 0b00001,
+    "AND" : 0b00010,
+    "OR" : 0b00010,
+    "XOR" : 0b00010,
+    "NOT" : 0b00010,
+    "SHFL" : 0b00011,
+    "SHFA" : 0b00100,
+    "ADDI" : 0b00101,
+    "SUBI" : 0b00110,
+    "MVIH" : 0b00111,
+    "MVIL" : 0b01000,
+    "LDIDR" : 0b01001,
+    "STIDR" : 0b01010,
+    "LDIDX" : 0b01011,
+    "STIDX" : 0b01100,
+    "JMP" : 0b01101,
+    "JMPI" : 0b01110,
+    "JGEO" : 0b01111,
+    "JLEO" : 0b10000,
+    "JCO" : 0b10001,
+    "JEO" : 0b10010,
+    "PUSH" : 0b10011,
+    "POP" : 0b10100,
+    "CALL" : 0b10101,
+    "JAL" : 0b10110,
+    "MOVSP" : 0b10111,
+    "RET" : 0b11000,
+    "STC" : 0b11001,
+    "NOP" : 0b00000,
 }
 
 # instruction format referefrence
@@ -73,7 +73,7 @@ instrFormatRef = {
     "POP" : "R",
     "CALL" : "R",
     "JAL" : "S",
-    "MOVSP" : "",
+    "MOVSP" : "R",
     "RET" : "",
     "STC" : "",
     "NOP" : "",
@@ -97,17 +97,17 @@ funcRef = {
 errorList = []
 compilationError = False
 
-def getOpcode(code):
-    """Return opcode based on letter code of the instruction"""
+def getOpcode(mnemonic):
+    """Return opcode based on mnemonic of the instruction"""
     try:
-        return opcodeRef[code.upper()]
+        return opcodeRef[mnemonic.upper()]
     except:
         return None
 
-def getInstrFomat(code):
-    """Return instruction fomat string (R = register, U = unsigned immedaete, S = singed immedaete) based on the letter code"""
+def getInstrFomat(mnemonic):
+    """Return instruction fomat string (R = register, U = unsigned immedaete, S = singed immedaete) based on the mnemonic"""
     try:
-        return instrFormatRef[code.upper()]
+        return instrFormatRef[mnemonic.upper()]
     except:
         return None
 
@@ -158,7 +158,7 @@ def verifyInstrFomat(expresions, fomatStr, lineNum):
     """
     # check number of parametrs
     if len(expresions) != len(fomatStr) + 1:
-        addError("invalid number of instruction parametrs, given: {}, expected: {}".fomat(len(expresions)-1, len(fomatStr)), lineNum)
+        addError("invalid number of instruction parametrs, given: {}, expected: {}".format(len(expresions)-1, len(fomatStr)), lineNum)
     # check parametr fomats
     for i,ch in enumerate(fomatStr):
         if ch == "R":
@@ -232,6 +232,18 @@ def instrToBinary(expresions, fomatStr, lineNum):
             addError("immedaete bigger than 11 bits", lineNum)
     return binaryLine
 
+def lineToExpresions(line):
+    line = line.split(";")[0] # trim comments
+    line = line.strip() # trim spaces
+    preex = line.split(",") # split line into expesions
+    expresions = re.sub(" +"," ", preex[0]).split(" ")
+    preex = preex[1:]
+    for pe in preex:
+        expresions.append(pe.strip())
+    for ex in expresions:
+        ex = ex.strip() # trim spaces
+    return expresions
+
 def lineToBinary(line, lineNum):
     """
     Verify line fomat and convert it to binary instruction
@@ -240,9 +252,8 @@ def lineToBinary(line, lineNum):
     return: instruction as binary int
     """
     # preprocessing
-    line = line.split("#")[0] # trim comments
-    line = line.rstrip() # trim spaces at the end
-    expresions = re.split(" |,", line) # split line into expesions
+    expresions = lineToExpresions(line)
+
     # get fomat
     fomatStr = getInstrFomat(expresions[0])
     if (fomatStr == None):
@@ -254,6 +265,18 @@ def lineToBinary(line, lineNum):
         return None
     # get binary value of the instruction
     return instrToBinary(expresions, fomatStr, lineNum)
+
+def replaceLabels(sourceLines):
+    # extract labels
+    labelLocation = []
+    for i, line in enumerate(sourceLines):
+        if (":" in line):
+            label = line.split(":")[0].strip()
+            if(label !=  ""):
+                labelLocation.append([label, i])
+
+    return labelLocation
+
 
 def main():
     # fetch cmd arguments
@@ -276,8 +299,12 @@ def main():
 
     print("Compiling {}...".format(source))
 
-    # convert instructions to binary line by line
     sourceLines = sourceFile.readlines()
+
+    # replace labels with numeric values
+    #print(replaceLabels(sourceLines))
+
+    # convert instructions to binary line by line
     for i, line in enumerate(sourceLines):
         # convert line to binary
         binaryLine = lineToBinary(line, i+1)
