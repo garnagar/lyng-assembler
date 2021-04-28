@@ -93,8 +93,12 @@ funcRef = {
     "NOT" : 0b11,
 }
 
+# instructions for which label as parametr is allowed witout warning
+labelParamNoWarning = ("JMPI", "JGEO", "JLEO", "JCO", "JEO", "JAL")
+
 # global error list and error flag
 errorList = []
+warningList = []
 compilationError = False
 
 def getOpcode(mnemonic):
@@ -119,15 +123,24 @@ def getFunc(code):
         return 0
 
 def addError(text, lineNum):
-    """Add error to error list and makrk compilation as failed"""
+    """Add error to error list and mark compilation as failed"""
     errorList.append((text, lineNum))
     global compilationError
     compilationError = True
+
+def addWarning(text, lineNum):
+    """Add warning to error warning list"""
+    warningList.append((text, lineNum))
 
 def printErrors():
     """Print out error list"""
     for err in errorList:
         print("[error] line {}: {}".format(err[1], err[0]))
+
+def printWarnings():
+    """Print out warning list"""
+    for warn in warningList:
+        print("[warning] line {}: {}".format(warn[1], warn[0]))
 
 def decStrToBin(numStr, bits):
     """Convert sring into int of n-bits (negative numbers as 2's complement)"""
@@ -233,7 +246,10 @@ def instrToBinary(expresions, fomatStr, lineNum):
     return binaryLine
 
 def lineToExpresions(line):
-    line = line.split(";")[0] # trim comments
+    """
+    Extract mnemonic and parametrs from assembly line
+    return: array [mnemonic, parametr 1, (parametr 2), (parametr 3)]
+    """
     line = line.strip() # trim spaces
     preex = line.split(",") # split line into expesions
     expresions = re.sub(" +"," ", preex[0]).split(" ")
@@ -267,16 +283,39 @@ def lineToBinary(line, lineNum):
     return instrToBinary(expresions, fomatStr, lineNum)
 
 def replaceLabels(sourceLines):
-    # extract labels
-    labelLocation = []
+    """
+    Replace lables with numeric values and delete labels
+    sourceLines - array of assembly lines with labels
+    return: resulting array of lines
+    """
+    # extract and detele labels
+    labelLocation = {} # list of tuples (lable, line of location)
     for i, line in enumerate(sourceLines):
         if (":" in line):
             label = line.split(":")[0].strip()
             if(label !=  ""):
-                labelLocation.append([label, i])
+                labelLocation[label] = i
+            sourceLines[i] = line.split(":")[1] # delete label
+    # replace labels
+    for i, line in enumerate(sourceLines):
+        for label in labelLocation:
+            sourceLines[i] = re.sub(label, str(labelLocation[label]-(i+1)), line)
+            # raise warning if it is not jump instruction
+            mnemonic = lineToExpresions(line)[0]
+            if(mnemonic not in labelParamNoWarning and label in line):
+                addWarning("label parametr is not recomended to use with {}".format(mnemonic), i+1)
+    return sourceLines
 
-    return labelLocation
-
+def stripComments(sourceLines):
+    """
+    Delete comments from the lines
+    sourceLines - array of assembly lines with comments
+    return: resulting array of lines
+    """
+    for i, line in enumerate(sourceLines):
+        line = line.split(";")[0] # trim comments
+        sourceLines[i] = line
+    return sourceLines
 
 def main():
     # fetch cmd arguments
@@ -301,8 +340,11 @@ def main():
 
     sourceLines = sourceFile.readlines()
 
+    # delete comments
+    sourceLines = stripComments(sourceLines)
+
     # replace labels with numeric values
-    #print(replaceLabels(sourceLines))
+    sourceLines = replaceLabels(sourceLines)
 
     # convert instructions to binary line by line
     for i, line in enumerate(sourceLines):
@@ -319,6 +361,7 @@ def main():
     destFile.close()
 
     # print results
+    printWarnings()
     if (compilationError):
         printErrors()
         print("Compilation failed")
