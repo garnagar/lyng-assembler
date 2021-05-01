@@ -1,11 +1,12 @@
 #!/usr/bin/python
 import sys
+import os
 import re
 import enum
 
 # opcode refrence
-# key: opcode letter code
-# value: 5bit opcode
+# key: mnemonic
+# value: 5-bit opcode
 opcodeRef = {
     "ADD" : 0b00001,
     "ADC" : 0b00001,
@@ -42,7 +43,7 @@ opcodeRef = {
 }
 
 # instruction format referefrence
-# key: opcode letter code
+# key: mnemonic
 # value: instruction fomat string (R = register, U = unsigned immedaete, S = singed immedaete)
 instrFormatRef = {
     "ADD" : "RRR",
@@ -80,8 +81,8 @@ instrFormatRef = {
 }
 
 # func referefrence
-# key: opcode letter code
-# value: 2bit func code
+# key: mnemonic
+# value: 2-bit func code
 funcRef = {
     "ADD" : 0b00,
     "ADC" : 0b01,
@@ -96,7 +97,7 @@ funcRef = {
 # instructions for which label as parametr is allowed witout warning
 labelParamNoWarning = ("JMPI", "JGEO", "JLEO", "JCO", "JEO", "JAL")
 
-# global error list and error flag
+# global varables
 errorList = []
 warningList = []
 compilationError = False
@@ -143,7 +144,7 @@ def printWarnings():
         print("[warning] line {}: {}".format(warn[1], warn[0]))
 
 def decStrToBin(numStr, bits):
-    """Convert sring into int of n-bits (negative numbers as 2's complement)"""
+    """Convert decimal sring into int of n-bits (negative numbers as 2's complement)"""
     return int(int(numStr) & 2**bits-1)
 
 def isInBitRange(num, bits, signed):
@@ -295,6 +296,11 @@ def replaceLabels(sourceLines):
             label = line.split(":")[0].strip()
             if(label !=  ""):
                 labelLocation[label] = i
+            # raise error if label clashes with mnemonic
+            for m in opcodeRef.keys():
+                if(label in m):
+                    addError("label can not be same as assembly mnemonic or its substring", i+1)
+                    break
             sourceLines[i] = line.split(":")[1] # delete label
     # replace labels
     for i, line in enumerate(sourceLines):
@@ -306,13 +312,14 @@ def replaceLabels(sourceLines):
                 addWarning("label parametr is not recomended to use with {}".format(mnemonic), i+1)
     return sourceLines
 
-def stripComments(sourceLines):
+def preprocessLines(sourceLines):
     """
-    Delete comments from the lines
+    Delete comments from the lines and change them to upper case
     sourceLines - array of assembly lines with comments
     return: resulting array of lines
     """
     for i, line in enumerate(sourceLines):
+        line = line.upper()
         line = line.split(";")[0] # trim comments
         sourceLines[i] = line
     return sourceLines
@@ -322,16 +329,24 @@ def main():
     source = sys.argv[1]
     dest = sys.argv[2]
 
-    print("Lyng Assembler v0.1")
+    print("Lyng Assembler v1.0")
 
-    #open files
+    # open files
+    # assembly file
     try:
-        sourceFile = open(source, "r") # assembly file
+        sourceFile = open(source, "r")
     except:
         print("Opening {} failed".format(source))
         return
+    # bytecode file
+    if not os.path.exists(os.path.dirname(dest)):
+        try:
+            os.makedirs(os.path.dirname(dest))
+        except:
+            print("Creating output file folder(s) failed")
+            return
     try:
-        destFile = open(dest, "wb") # bytecode file
+        destFile = open(dest, "wb")
     except:
         print("Opening {} failed".format(dest))
         return
@@ -340,8 +355,8 @@ def main():
 
     sourceLines = sourceFile.readlines()
 
-    # delete comments
-    sourceLines = stripComments(sourceLines)
+    # delete comments and change everything to upper case
+    sourceLines = preprocessLines(sourceLines)
 
     # replace labels with numeric values
     sourceLines = replaceLabels(sourceLines)
@@ -365,8 +380,10 @@ def main():
     if (compilationError):
         printErrors()
         print("Compilation failed")
+        sys.exit(1)
     else:
-        print("Compilation successful, bytecode wrriten to {}".format(dest))
+        print("Compilation successful, bytecode written to {}".format(dest))
+        sys.exit(0)
 
 if __name__ == "__main__":
     main()

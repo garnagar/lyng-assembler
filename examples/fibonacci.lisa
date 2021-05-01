@@ -3,9 +3,9 @@
         MVIL   $5, 0         ; set start location in memory
         MVIL   $6, 0         ; set iterator index to 0
         MVIL   $7, 100       ; set number of iterations to 100
-loop:   ADD    $3, $1, $2    ; add last two number in the sequence
+loop:   ADD    $3, $1, $2    ; add last two numbers in the sequence
         STIDR  $3, $0, -2    ; output number to memory
         ADDI   $1, $2, 0
-        ADDI   $2, $3, 0
+        ADDI   $2, $3, 0     ; move last two numbers to correct registers
         ADDI   $6, $6, 1     ; increment index
         JLEO   $7, $6, loop  ; next iteration
