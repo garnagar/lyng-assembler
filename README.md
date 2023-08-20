@@ -1,5 +1,7 @@
 # Lyng Assembler
-Assembler for 16-bit [Lyng Processor](https://github.com/Zalamar/LyngProcessor) created as a part of Advanced Computer Architecture on Technical University of Denmark. It converts Lyng ISA (LISA) into machine code.
+Assembler for 16-bit [Lyng Processor](https://github.com/Zalamar/LyngProcessor). It converts Lyng ISA (LISA) into machine code.
+
+This project was created as a part of the Advanced Computer Architecture course at Technical University of Denmark. We designed a custom 16-bit pipelined processor using modern hardware description language Chisel, custom ISA for the processor, and this assembler.
 
 ## Get Started
 
